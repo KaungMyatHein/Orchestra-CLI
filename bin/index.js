@@ -225,6 +225,14 @@ async function runBuild(platformArg) {
             console.warn(`⚠️  Unknown platform argument "${target}". Valid: web, android, ios, flutter, all.`);
         }
 
+        // Ensure directories exist for targets
+        platformsToBuild.forEach(p => {
+            if (p === 'css' || p === 'ts') ensureDir(path.join(process.cwd(), 'src', 'styles'));
+            if (p === 'android') ensureDir(path.join(process.cwd(), 'tokens', 'android'));
+            if (p === 'ios') ensureDir(path.join(process.cwd(), 'tokens', 'ios'));
+            if (p === 'flutter') ensureDir(path.join(process.cwd(), 'tokens', 'flutter'));
+        });
+
         if (platformsToBuild.length > 0) {
             await Promise.all(platformsToBuild.map(p => sd.buildPlatform(p)));
         }
