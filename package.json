@@ -1,20 +1,21 @@
 {
-    "name": "@orchestra/design-cli",
-    "version": "1.0.0",
-    "description": "CLI to sync and build Orchestra design tokens",
-    "bin": {
-        "orchestra-cli": "./bin/index.js"
-    },
-    "main": "bin/index.js",
-    "type": "module",
-    "scripts": {
-        "test": "echo \"Error: no test specified\" && exit 1"
-    },
-    "keywords": [
-        "design-system",
-        "cli",
-        "orchestra"
-    ],
-    "author": "",
-    "license": "ISC"
+  "name": "@orchestra/design-cli",
+  "version": "1.0.0",
+  "description": "CLI to sync and build Orchestra design tokens",
+  "bin": {
+    "orchestra-cli": "./bin/index.js"
+  },
+  "main": "bin/index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "tokens": "node bin/index.js build web"
+  },
+  "keywords": [
+    "design-system",
+    "cli",
+    "orchestra"
+  ],
+  "author": "",
+  "license": "ISC"
 }

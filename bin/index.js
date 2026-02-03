@@ -57,11 +57,11 @@ jobs:
           echo "--- git status ---"
           git status --porcelain
 
-      - name: Commit React Styles
+      - name: Commit Design Tokens
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "🎨 Design Token Updates"
-          file_pattern: 'src/styles/*.css src/styles/*.ts'
+          file_pattern: 'src/styles/*.css src/styles/*.ts tokens/android/*.kt tokens/ios/*.swift tokens/flutter/*.dart'
           skip_dirty_check: false
 `;
 
@@ -321,12 +321,16 @@ function runBuild(platformArg) {
     const tokenDir = path.join(process.cwd(), 'tokens');
     if (!fs.existsSync(tokenDir)) {
         console.error(`❌ Tokens folder not found at ${tokenDir}`);
+        console.error(`👉 Have you synced your design tokens from Figma yet?`);
+        console.error(`   Run the Orchestra Figma Plugin to push your tokens to this repository.`);
         process.exit(1);
     }
 
     const designTokensPath = path.join(tokenDir, 'design-tokens.json');
     if (!fs.existsSync(designTokensPath)) {
         console.error(`❌ design-tokens.json not found at ${designTokensPath}`);
+        console.error(`👉 Have you synced your design tokens from Figma yet?`);
+        console.error(`   Run the Orchestra Figma Plugin to push your tokens to this repository.`);
         process.exit(1);
     }
 
