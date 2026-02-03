@@ -1,1 +1,7 @@
-/**\n * Auto-generated from tokens/design-tokens.json\n * Do not edit manually.\n */\n\nexport const brandAButtonBackgroundDefaultType = "color";\nexport const brandAButtonBackgroundDefaultValue = "{Purple.700}";\nexport const brandAButtonBackgroundDisableType = "color";\nexport const brandAButtonBackgroundDisableValue = "{Purple.200}";\nexport const brandAButtonTextDefaultType = "color";\nexport const brandAButtonTextDefaultValue = "{Base.White}";
+/**
+ * Do not edit directly, this file was auto-generated.
+ */
+
+export const StartUpTokensBrandAButtonBackgroundDefault = "#7e22ce";
+export const StartUpTokensBrandAButtonBackgroundDisable = "#e9d5ff";
+export const StartUpTokensBrandAButtonTextDefault = "#ffffff";
