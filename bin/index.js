@@ -24,9 +24,6 @@ on:
     paths:
       - 'tokens/**/*.json'
 
-# --- FIX 2: CONCURRENCY ---
-# If you push 3 times in a row, this cancels the first 2 runs
-# so only the latest (most important) one finishes.
 concurrency:
   group: \${{ github.workflow }}-\${{ github.ref }}
   cancel-in-progress: true
@@ -35,23 +32,20 @@ jobs:
   build-tokens:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Required to push changes back
+      contents: write
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          # Fetch full history so rebase works correctly
           fetch-depth: 0
           ref: \${{ github.ref }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          # style-dictionary@5 requires Node >= 22
           node-version: '22'
 
-      # Pull latest main first (before generating untracked files)
       - name: Pull latest changes
         run: |
           git config --global user.name "github-actions[bot]"
@@ -63,14 +57,12 @@ jobs:
         run: npm ci
 
       - name: Run Build Script
-        # We assume the user has added this script or uses npx
         run: npm run tokens
 
-      - name: Debug generated outputs
+      - name: Debug Output
         run: |
           echo "--- src/styles ---"
           ls -la src/styles || true
-          echo "--- git status ---"
           git status --porcelain
 
       - name: Commit Design Tokens

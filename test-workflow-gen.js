@@ -1,0 +1,78 @@
+const getWorkflowContent = (platform) => {
+    const p = (platform || 'all').toLowerCase();
+    const patterns = [];
+
+    if (p === 'web' || p === 'all') patterns.push('src/styles/*.css src/styles/*.ts');
+    if (p === 'android' || p === 'all') patterns.push('tokens/android/*.kt');
+    if (p === 'ios' || p === 'all') patterns.push('tokens/ios/*.swift');
+    if (p === 'flutter' || p === 'all') patterns.push('tokens/flutter/*.dart');
+
+    const filePattern = patterns.join(' ');
+
+    return `# .github/workflows/build-tokens.yml
+name: Orchestra Design System Sync
+
+on:
+  push:
+    paths:
+      - 'tokens/**/*.json'
+
+# --- FIX 2: CONCURRENCY ---
+# If you push 3 times in a row, this cancels the first 2 runs
+# so only the latest (most important) one finishes.
+concurrency:
+  group: \${{ github.workflow }}-\${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-tokens:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Required to push changes back
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          # Fetch full history so rebase works correctly
+          fetch-depth: 0
+          ref: \${{ github.ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          # style-dictionary@5 requires Node >= 22
+          node-version: '22'
+
+      # Pull latest main first (before generating untracked files)
+      - name: Pull latest changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout \${{ github.ref_name }} || git checkout -b \${{ github.ref_name }}
+          git pull origin \${{ github.ref_name }} --rebase
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Build Script
+        # We assume the user has added this script or uses npx
+        run: npm run tokens
+
+      - name: Debug generated outputs
+        run: |
+          echo "--- src/styles ---"
+          ls -la src/styles || true
+          echo "--- git status ---"
+          git status --porcelain
+
+      - name: Commit Design Tokens
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "🎨 Design Token Updates"
+          file_pattern: '${filePattern}'
+          skip_dirty_check: false
+`;
+};
+
+console.log(getWorkflowContent('web'));
