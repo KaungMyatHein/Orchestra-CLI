@@ -5,7 +5,18 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 // ---------- CONFIG ----------
-const WORKFLOW_CONTENT = `# .github/workflows/build-tokens.yml
+const getWorkflowContent = (platform) => {
+    const p = (platform || 'all').toLowerCase();
+    const patterns = [];
+
+    if (p === 'web' || p === 'all') patterns.push('src/styles/*.css src/styles/*.ts');
+    if (p === 'android' || p === 'all') patterns.push('tokens/android/*.kt');
+    if (p === 'ios' || p === 'all') patterns.push('tokens/ios/*.swift');
+    if (p === 'flutter' || p === 'all') patterns.push('tokens/flutter/*.dart');
+
+    const filePattern = patterns.join(' ');
+
+    return `# .github/workflows/build-tokens.yml
 name: Orchestra Design System Sync
 
 on:
@@ -66,9 +77,10 @@ jobs:
         uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "🎨 Design Token Updates"
-          file_pattern: 'src/styles/*.css src/styles/*.ts tokens/android/*.kt tokens/ios/*.swift tokens/flutter/*.dart'
+          file_pattern: '${filePattern}'
           skip_dirty_check: false
 `;
+};
 
 // ---------- HELPERS ----------
 
@@ -296,7 +308,7 @@ function runInit(platformArg) {
     if (fs.existsSync(workflowPath)) {
         console.log('⚠️  Workflow file already exists. Skipping overwrite.');
     } else {
-        fs.writeFileSync(workflowPath, WORKFLOW_CONTENT, 'utf8');
+        fs.writeFileSync(workflowPath, getWorkflowContent(target), 'utf8');
         console.log('✅ Generated .github/workflows/design-syncs.yml');
     }
 
