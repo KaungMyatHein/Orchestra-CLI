@@ -281,8 +281,9 @@ function writeFlutterThemeFiles(themeName, tokens) {
 
 // ---------- COMMANDS ----------
 
-function runInit() {
+function runInit(platformArg) {
     const cwd = process.cwd();
+    const target = platformArg || 'all';
 
     // 1. Create Workflow File
     const workflowPath = path.join(cwd, '.github', 'workflows', 'design-syncs.yml');
@@ -304,9 +305,9 @@ function runInit() {
             if (pkg.scripts.tokens) {
                 console.log('⚠️  "tokens" script already exists in package.json. Skipping.');
             } else {
-                pkg.scripts.tokens = "orchestra-cli build all";
+                pkg.scripts.tokens = `orchestra-cli build ${target}`;
                 fs.writeFileSync(packageJsonPath, JSON.stringify(pkg, null, 2) + '\n', 'utf8');
-                console.log('✅ Added "tokens" script to package.json');
+                console.log(`✅ Added "tokens" script for "${target}" to package.json`);
             }
         } catch (error) {
             console.error('❌ Failed to parse package.json:', error);
@@ -447,13 +448,14 @@ const args = process.argv.slice(2);
 const command = args[0];
 
 if (command === 'init') {
-    runInit();
+    // args[1] would be the platform (optional)
+    runInit(args[1]);
 } else if (command === 'build') {
     runBuild(args[1]);
 } else if (command === 'help' || !command) {
     console.log(`
 Usage:
-  orchestra-cli init          Generate GitHub workflow
+  orchestra-cli init [platform] Generate GitHub workflow and package.json script for a specific platform (default: all)
   orchestra-cli build [files] Build design tokens
                               [files] can be: web, android, ios, flutter, all
 `);
