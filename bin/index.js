@@ -39,12 +39,12 @@ jobs:
           # style-dictionary@5 requires Node >= 22
           node-version: '22'
 
-      - name: Install Dependencies
-        run: npm ci
-
       # Pull latest main first (before generating untracked files)
       - name: Pull latest changes
         run: git pull origin main --rebase
+
+      - name: Install Dependencies
+        run: npm ci
 
       - name: Run Build Script
         # We assume the user has added this script or uses npx
