@@ -110,12 +110,18 @@ async function runBuild(platformArg) {
 
     const rawTokens = JSON.parse(fs.readFileSync(tokenFile, 'utf8'));
 
+    // improved key finding logic
     const keys = Object.keys(rawTokens);
-    let primitiveKey = keys.find(k => /primitive|base/i.test(k)) || keys[0];
-    let componentKey = keys.find(k => /component|brand|start-up/i.test(k) && k !== primitiveKey) || keys[1];
+    let primitiveKey = keys.find(k => /primitive|base|core|global/i.test(k));
+    // If no explicit primitive key, assume the first one is primitive
+    if (!primitiveKey) primitiveKey = keys[0];
+
+    // Find component key (anything that isn't primitive)
+    let componentKey = keys.find(k => k !== primitiveKey && /component|brand|semantic|token/i.test(k)) || keys[1];
 
     if (!primitiveKey || !componentKey) {
         console.error('❌ Could not identify Primitives vs Components/Brands in design-tokens.json');
+        console.error(`   Keys found: ${keys.join(', ')}`);
         process.exit(1);
     }
 
@@ -124,17 +130,35 @@ async function runBuild(platformArg) {
 
     const primitives = rawTokens[primitiveKey];
     const componentGroup = rawTokens[componentKey];
-    const brandNames = Object.keys(componentGroup);
 
+    // Safety check: Ensure componentGroup is an object
+    if (!componentGroup || typeof componentGroup !== 'object') {
+        console.error(`❌ Component group "${componentKey}" is empty or not an object.`);
+        process.exit(1);
+    }
+
+    const brandNames = Object.keys(componentGroup);
     console.log(`🔍 Found brands: ${brandNames.join(', ')}`);
 
     for (const brand of brandNames) {
         console.log(`\n🏗️  Building brand: ${brand}`);
 
-        const primitiveModes = Object.keys(primitives);
-        const baseMode = primitiveModes[0];
-        const basePrimitives = primitives[baseMode] || primitives;
+        // Logic to detect if primitives are nested in modes (e.g. "Mode 1") or flat
+        const primitiveKeys = Object.keys(primitives);
+        const hasModes = primitiveKeys.some(k => typeof primitives[k] === 'object' && !primitives[k].value && !primitives[k].$value);
 
+        let basePrimitives;
+        if (hasModes) {
+            const baseMode = primitiveKeys[0];
+            console.log(`ℹ️  Flattening references for mode "${baseMode}" to root.`);
+            basePrimitives = primitives[baseMode];
+        } else {
+            console.log(`ℹ️  Primitives appear flat (no modes detected). Using directly.`);
+            basePrimitives = primitives;
+        }
+
+        // Construct the combined token tree
+        // We explicitly nest the brand tokens under their brand name to ensure uniqueness
         const themeTokens = {
             ...basePrimitives,
             [componentKey]: {
@@ -142,7 +166,8 @@ async function runBuild(platformArg) {
             }
         };
 
-        console.log(`ℹ️  Flattening references for mode "${baseMode}" to root.`);
+        // Debugging flag to prevent spamming console
+        let debugLogged = false;
 
         const sd = new StyleDictionary({
             tokens: themeTokens,
@@ -157,7 +182,16 @@ async function runBuild(platformArg) {
                             outputReferences: false,
                             selector: `[data-theme="${toKebabCase(brand)}"]`
                         },
-                        filter: (token) => token.path[0] === componentKey
+                        // PRO FIX: Robust filtering + Debugging
+                        filter: (token) => {
+                            // Log the first path seen to verify structure
+                            if (!debugLogged) {
+                                console.log(`   [DEBUG] Sample token path: ${token.path.join(' -> ')}`);
+                                debugLogged = true;
+                            }
+                            // Return true if this token belongs to the current brand
+                            return token.path.includes(brand);
+                        }
                     }]
                 },
                 ts: {
@@ -166,7 +200,8 @@ async function runBuild(platformArg) {
                     files: [{
                         destination: `theme-${toKebabCase(brand)}.ts`,
                         format: 'javascript/es6',
-                        filter: (token) => token.path[0] === componentKey
+                        // PRO FIX: Robust filtering
+                        filter: (token) => token.path.includes(brand)
                     }]
                 },
                 android: {
@@ -175,7 +210,7 @@ async function runBuild(platformArg) {
                     files: [{
                         destination: `theme_${toKebabCase(brand)}.xml`,
                         format: 'android/resources',
-                        filter: (token) => token.path[0] === componentKey
+                        filter: (token) => token.path.includes(brand)
                     }]
                 },
                 ios: {
@@ -187,7 +222,7 @@ async function runBuild(platformArg) {
                         options: {
                             className: `Theme${toCamelCase(brand)}`
                         },
-                        filter: (token) => token.path[0] === componentKey
+                        filter: (token) => token.path.includes(brand)
                     }]
                 },
                 flutter: {
@@ -196,17 +231,15 @@ async function runBuild(platformArg) {
                     files: [{
                         destination: `theme_${toKebabCase(brand)}.dart`,
                         format: 'flutter/class.dart',
-                        className: `${brand}Theme`,
-                        filter: (token) => token.path[0] === componentKey
+                        className: `${toCamelCase(brand)}Theme`,
+                        filter: (token) => token.path.includes(brand)
                     }]
                 }
             }
         });
 
-        // PLATFORM MAPPING logic
+        // Platform mapping logic
         const target = (platformArg || 'all').toLowerCase();
-
-        // Map user-facing arguments to Style Dictionary platform keys
         const platformMap = {
             web: ['css', 'ts'],
             android: ['android'],
@@ -215,17 +248,13 @@ async function runBuild(platformArg) {
             all: ['css', 'ts', 'android', 'ios', 'flutter']
         };
 
-        // Fallback: If user passes 'css' or 'ts' directly (not standard init arg but valid SD key)
-        let platformsToBuild = [];
-        if (platformMap[target]) {
-            platformsToBuild = platformMap[target];
-        } else if (['css', 'ts', 'android', 'ios', 'flutter'].includes(target)) {
-            platformsToBuild = [target];
-        } else {
+        let platformsToBuild = platformMap[target] || (['css', 'ts', 'android', 'ios', 'flutter'].includes(target) ? [target] : []);
+
+        if (platformsToBuild.length === 0) {
             console.warn(`⚠️  Unknown platform argument "${target}". Valid: web, android, ios, flutter, all.`);
         }
 
-        // Ensure directories exist for targets
+        // Ensure directories exist
         platformsToBuild.forEach(p => {
             if (p === 'css' || p === 'ts') ensureDir(path.join(process.cwd(), 'src', 'styles'));
             if (p === 'android') ensureDir(path.join(process.cwd(), 'tokens', 'android'));
