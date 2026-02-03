@@ -32,16 +32,15 @@ jobs:
         with:
           # Fetch full history so rebase works correctly
           fetch-depth: 0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          # style-dictionary@5 requires Node >= 22
-          node-version: '22'
+          ref: \${{ github.ref }}
 
       # Pull latest main first (before generating untracked files)
       - name: Pull latest changes
-        run: git pull origin main --rebase
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout \${{ github.ref_name }} || git checkout -b \${{ github.ref_name }}
+          git pull origin \${{ github.ref_name }} --rebase
 
       - name: Install Dependencies
         run: npm ci
