@@ -34,6 +34,12 @@ jobs:
           fetch-depth: 0
           ref: \${{ github.ref }}
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          # style-dictionary@5 requires Node >= 22
+          node-version: '22'
+
       # Pull latest main first (before generating untracked files)
       - name: Pull latest changes
         run: |
