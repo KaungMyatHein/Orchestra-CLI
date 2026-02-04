@@ -211,24 +211,31 @@ async function runBuild(platformArg) {
     // --- STEP 1: KEY FINDING LOGIC ---
     // We try to guess which key in the JSON holds variables (colors, spacing) = Primitives
     // and which key holds the specific brand themes = Components
+    // --- STEP 1: KEY FINDING LOGIC ---
     const keys = Object.keys(tokens);
-    let primitiveKey = keys.find(k => /primitive|base|core|global/i.test(k));
-    // If no explicit primitive key, assume the first one is primitive
-    if (!primitiveKey) primitiveKey = keys[0];
 
     // Find component key (anything that isn't primitive, usually named "token-set" or "semantic")
-    let componentKey = keys.find(k => k !== primitiveKey && /component|brand|semantic|token/i.test(k)) || keys[1];
+    let componentKey = keys.find(k => /component|brand|semantic|token/i.test(k) && !/primitive|base|core|global|spacing/i.test(k));
 
-    if (!primitiveKey || !componentKey) {
-        console.error('❌ Could not identify Primitives vs Components/Brands in design-tokens.json');
+    // Fallback: If no obvious component key, try to find one that seems like brands
+    if (!componentKey) {
+        // Assume the one with "Brand" in nested keys is components? 
+        // For now, let's look for "Component Tokens" explicitly or fall back to 2nd key
+        componentKey = keys.find(k => k.includes('Component')) || keys[1];
+    }
+
+    if (!componentKey) {
+        console.error('❌ Could not identify Component/Brand tokens.');
         console.error(`   Keys found: ${keys.join(', ')}`);
         process.exit(1);
     }
 
-    console.log(`✅ Using Primitives: "${primitiveKey}"`);
-    console.log(`✅ Using Components: "${componentKey}"`);
+    // Treat ALL other keys as "Shared/Primitive" groups (Color, Spacing, Typography, etc.)
+    const sharedKeys = keys.filter(k => k !== componentKey);
 
-    const primitives = tokens[primitiveKey];
+    console.log(`✅ Using Components: "${componentKey}"`);
+    console.log(`✅ Using Shared Primitives: ${sharedKeys.map(k => `"${k}"`).join(', ')}`);
+
     const componentGroup = tokens[componentKey];
 
     // Safety check: Ensure componentGroup is an object
@@ -237,43 +244,51 @@ async function runBuild(platformArg) {
         process.exit(1);
     }
 
+    // --- AGGREGATE PRIMITIVES ---
+    // Iterate through all shared sets (Primitive Tokens, Spacing Tokens, etc.)
+    // Flatten "Mode 1" if present, and merge into one big "basePrimitives" object.
+
+    let allBasePrimitives = {};
+
+    for (const key of sharedKeys) {
+        const group = tokens[key];
+        const groupKeys = Object.keys(group);
+        const hasModes = groupKeys.some(k => typeof group[k] === 'object' && !group[k].value && !group[k].$value);
+
+        if (hasModes) {
+            // Assume first mode is the one we want (e.g. "Mode 1")
+            const baseMode = groupKeys[0];
+            console.log(`ℹ️  [${key}] Flattening mode "${baseMode}" to root.`);
+            Object.assign(allBasePrimitives, group[baseMode]);
+        } else {
+            console.log(`ℹ️  [${key}] Using directly (no modes).`);
+            Object.assign(allBasePrimitives, group);
+        }
+    }
+
     const brandNames = Object.keys(componentGroup);
     console.log(`🔍 Found brands: ${brandNames.join(', ')}`);
+
+    // Alias allBasePrimitives to basePrimitives for compatibility with existing code
+    const basePrimitives = allBasePrimitives;
 
     for (const brand of brandNames) {
         console.log(`\n🏗️  Building brand: ${brand}`);
 
-        // --- STEP 2: HANDLE MODES ---
-        // Some Figma exports nest tokens under "Mode 1" or "Light". 
-        // We attempt to flatten them so we can access variables directly.
-        const primitiveKeys = Object.keys(primitives);
-        const hasModes = primitiveKeys.some(k => typeof primitives[k] === 'object' && !primitives[k].value && !primitives[k].$value);
-
-        let basePrimitives;
-        if (hasModes) {
-            const baseMode = primitiveKeys[0];
-            console.log(`ℹ️  Flattening references for mode "${baseMode}" to root.`);
-            basePrimitives = primitives[baseMode];
-        } else {
-            console.log(`ℹ️  Primitives appear flat (no modes detected). Using directly.`);
-            basePrimitives = primitives;
-        }
-
         // --- STEP 3: PREPARE TOKEN OBJECT ---
         // We combine the base primitives with the specific brand components.
-        // We strictly nest the brand tokens under the componentKey to keep paths consistent.
+        // We put the brand tokens DIRECTLY under the brand key to avoid "component-tokens" prefix.
         const themeTokens = {
             ...basePrimitives,
-            [componentKey]: {
-                [brand]: componentGroup[brand]
-            }
+            [brand]: componentGroup[brand]
         };
 
-        // Optional debug: show the top-level keys and the brand subtree when TOKENS_DEBUG=1
+        // Optional debug: show the top-level keys and the brand subtree when TOKENS_DEBUG === '1'
         if (process.env.TOKENS_DEBUG === '1') {
             console.log(`   [DEBUG] themeTokens keys: ${Object.keys(themeTokens).join(', ')}`);
-            if (themeTokens[componentKey] && themeTokens[componentKey][brand]) {
-                console.log(`   [DEBUG] brand subtree keys: ${Object.keys(themeTokens[componentKey][brand]).join(', ')}`);
+            // Check brand key directly
+            if (themeTokens[brand]) {
+                console.log(`   [DEBUG] brand subtree keys: ${Object.keys(themeTokens[brand]).join(', ')}`);
             } else {
                 console.log('   [DEBUG] brand subtree: <missing>');
             }
@@ -298,15 +313,8 @@ async function runBuild(platformArg) {
                         options: {
                             outputReferences: false,
                             selector: `[data-theme="${toKebabCase(brand)}"]`
-                        },
-                        // PRO FIX: Robust filtering + Debugging
-                        filter: (token) => {
-                            if (!debugLogged && process.env.TOKENS_DEBUG === '1') {
-                                console.log(`   [DEBUG] Sample token path: ${token.path.join(' -> ')}`);
-                                debugLogged = true;
-                            }
-                            return token.path.map(p => toKebabCase(String(p))).includes(normalizedBrand);
                         }
+                        // Filter removed: We want everything in themeTokens (Brand + Primitives)
                     }]
                 },
                 ts: {
@@ -314,9 +322,8 @@ async function runBuild(platformArg) {
                     buildPath: 'src/styles/',
                     files: [{
                         destination: `theme-${toKebabCase(brand)}.ts`,
-                        format: 'javascript/es6',
-                        // PRO FIX: Robust filtering
-                        filter: (token) => token.path.map(p => toKebabCase(String(p))).includes(normalizedBrand)
+                        format: 'javascript/es6'
+                        // Filter removed
                     }]
                 },
                 android: {
@@ -324,8 +331,8 @@ async function runBuild(platformArg) {
                     buildPath: 'tokens/android/',
                     files: [{
                         destination: `theme_${toKebabCase(brand)}.xml`,
-                        format: 'android/resources',
-                        filter: (token) => token.path.map(p => toKebabCase(String(p))).includes(normalizedBrand)
+                        format: 'android/resources'
+                        // Filter removed
                     }]
                 },
                 ios: {
@@ -336,8 +343,8 @@ async function runBuild(platformArg) {
                         format: 'ios-swift/class.swift',
                         options: {
                             className: `Theme${toCamelCase(brand)}`
-                        },
-                        filter: (token) => token.path.map(p => toKebabCase(String(p))).includes(normalizedBrand)
+                        }
+                        // Filter removed
                     }]
                 },
                 flutter: {
@@ -346,12 +353,13 @@ async function runBuild(platformArg) {
                     files: [{
                         destination: `theme_${toKebabCase(brand)}.dart`,
                         format: 'flutter/class.dart',
-                        className: `${toCamelCase(brand)}Theme`,
-                        filter: (token) => token.path.map(p => toKebabCase(String(p))).includes(normalizedBrand)
+                        className: `${toCamelCase(brand)}Theme`
+                        // Filter removed
                     }]
                 }
             }
         });
+
 
         // Platform mapping logic
         const target = (platformArg || 'all').toLowerCase();

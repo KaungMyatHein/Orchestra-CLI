@@ -9,7 +9,7 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "tokens": "node bin/index.js build web"
+    "tokens": "node bin/index.js build all"
   },
   "keywords": [
     "design-system",
