@@ -1,5 +1,14 @@
 #!/usr/bin/env node
 
+/**
+ * ORCHESTRA CLI
+ * 
+ * This is the main entry point for the CLI.
+ * It handles two main commands:
+ * 1. `init`: Sets up the project with a GitHub Action and script.
+ * 2. `build`: Reads design tokens and converts them into code (CSS, Swift, etc.) using Style Dictionary.
+ */
+
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -8,12 +17,20 @@ import StyleDictionary from 'style-dictionary';
 
 // ---------- HELPERS ----------
 
+/**
+ * Creates a directory if it doesn't exist.
+ * Used to ensure we have places to put our generated files (e.g. src/styles).
+ */
 function ensureDir(dirPath) {
     if (!fs.existsSync(dirPath)) {
         fs.mkdirSync(dirPath, { recursive: true });
     }
 }
 
+/**
+ * Converts "CamelCase" or "snake_case" to "kebab-case".
+ * Useful for CSS variables and file names.
+ */
 function toKebabCase(str) {
     return str
         .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
@@ -29,6 +46,13 @@ function toCamelCase(str) {
 }
 
 // ---------- CONFIG ----------
+
+/**
+ * Generates the content for the GitHub Actions workflow file (.github/workflows/design-syncs.yml).
+ * This automation listens for changes to tokens/*.json and automatically runs the build.
+ * 
+ * @param {string} platform - The platform to filter files for (web, ios, etc)
+ */
 const getWorkflowContent = (platform) => {
     const p = (platform || 'all').toLowerCase();
     const patterns = [];
@@ -99,6 +123,13 @@ jobs:
 
 // ---------- BUILDERS ----------
 
+/**
+ * The core logic for building tokens.
+ * 1. Reads 'tokens/design-tokens.json'
+ * 2. Identifies which part of the JSON is "Primitives" vs "Components/Brands"
+ * 3. Loops through every Brand found.
+ * 4. Configures Style Dictionary to output files for the requested platforms.
+ */
 async function runBuild(platformArg) {
     const cwd = process.cwd();
     const tokenDir = path.join(cwd, 'tokens');
@@ -111,13 +142,15 @@ async function runBuild(platformArg) {
 
     const rawTokens = JSON.parse(fs.readFileSync(tokenFile, 'utf8'));
 
-    // improved key finding logic
+    // --- STEP 1: KEY FINDING LOGIC ---
+    // We try to guess which key in the JSON holds variables (colors, spacing) = Primitives
+    // and which key holds the specific brand themes = Components
     const keys = Object.keys(rawTokens);
     let primitiveKey = keys.find(k => /primitive|base|core|global/i.test(k));
     // If no explicit primitive key, assume the first one is primitive
     if (!primitiveKey) primitiveKey = keys[0];
 
-    // Find component key (anything that isn't primitive)
+    // Find component key (anything that isn't primitive, usually named "token-set" or "semantic")
     let componentKey = keys.find(k => k !== primitiveKey && /component|brand|semantic|token/i.test(k)) || keys[1];
 
     if (!primitiveKey || !componentKey) {
@@ -144,7 +177,9 @@ async function runBuild(platformArg) {
     for (const brand of brandNames) {
         console.log(`\n🏗️  Building brand: ${brand}`);
 
-        // Logic to detect if primitives are nested in modes (e.g. "Mode 1") or flat
+        // --- STEP 2: HANDLE MODES ---
+        // Some Figma exports nest tokens under "Mode 1" or "Light". 
+        // We attempt to flatten them so we can access variables directly.
         const primitiveKeys = Object.keys(primitives);
         const hasModes = primitiveKeys.some(k => typeof primitives[k] === 'object' && !primitives[k].value && !primitives[k].$value);
 
@@ -158,8 +193,9 @@ async function runBuild(platformArg) {
             basePrimitives = primitives;
         }
 
-        // Construct the combined token tree
-        // We explicitly nest the brand tokens under their brand name to ensure uniqueness
+        // --- STEP 3: PREPARE TOKEN OBJECT ---
+        // We combine the base primitives with the specific brand components.
+        // We strictly nest the brand tokens under the componentKey to keep paths consistent.
         const themeTokens = {
             ...basePrimitives,
             [componentKey]: {
@@ -182,9 +218,11 @@ async function runBuild(platformArg) {
         // Normalize brand for robust matching (case/format-insensitive)
         const normalizedBrand = toKebabCase(brand);
 
+        // --- STEP 4: CONFIGURE STYLE DICTIONARY ---
         const sd = new StyleDictionary({
             tokens: themeTokens,
             platforms: {
+                // Defines how to build for CSS/Web
                 css: {
                     transformGroup: 'css',
                     buildPath: 'src/styles/',
@@ -281,6 +319,11 @@ async function runBuild(platformArg) {
 
 // ---------- COMMANDS ----------
 
+/**
+ * Initializes the project by:
+ * 1. Creating the .github/workflows/design-syncs.yml file.
+ * 2. Adding a "tokens" script to package.json so the workflow can run `npm run tokens`.
+ */
 function runInit(platformArg) {
     const cwd = process.cwd();
     const target = platformArg || 'all';
