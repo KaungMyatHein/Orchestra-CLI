@@ -1,6 +1,6 @@
 {
   "name": "@orchestra/design-cli",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "CLI to sync and build Orchestra design tokens",
   "bin": {
     "orchestra-cli": "./bin/index.js"
