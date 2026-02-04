@@ -166,8 +166,20 @@ async function runBuild(platformArg) {
             }
         };
 
+        // Optional debug: show the top-level keys and the brand subtree when TOKENS_DEBUG=1
+        if (process.env.TOKENS_DEBUG === '1') {
+            console.log(`   [DEBUG] themeTokens keys: ${Object.keys(themeTokens).join(', ')}`);
+            if (themeTokens[componentKey] && themeTokens[componentKey][brand]) {
+                console.log(`   [DEBUG] brand subtree keys: ${Object.keys(themeTokens[componentKey][brand]).join(', ')}`);
+            } else {
+                console.log('   [DEBUG] brand subtree: <missing>');
+            }
+        }
         // Debugging flag to prevent spamming console
         let debugLogged = false;
+
+        // Normalize brand for robust matching (case/format-insensitive)
+        const normalizedBrand = toKebabCase(brand);
 
         const sd = new StyleDictionary({
             tokens: themeTokens,
@@ -184,13 +196,11 @@ async function runBuild(platformArg) {
                         },
                         // PRO FIX: Robust filtering + Debugging
                         filter: (token) => {
-                            // Log the first path seen to verify structure
-                            if (!debugLogged) {
+                            if (!debugLogged && process.env.TOKENS_DEBUG === '1') {
                                 console.log(`   [DEBUG] Sample token path: ${token.path.join(' -> ')}`);
                                 debugLogged = true;
                             }
-                            // Return true if this token belongs to the current brand
-                            return token.path.includes(brand);
+                            return token.path.map(p => toKebabCase(String(p))).includes(normalizedBrand);
                         }
                     }]
                 },
@@ -201,7 +211,7 @@ async function runBuild(platformArg) {
                         destination: `theme-${toKebabCase(brand)}.ts`,
                         format: 'javascript/es6',
                         // PRO FIX: Robust filtering
-                        filter: (token) => token.path.includes(brand)
+                        filter: (token) => token.path.map(p => toKebabCase(String(p))).includes(normalizedBrand)
                     }]
                 },
                 android: {
@@ -210,7 +220,7 @@ async function runBuild(platformArg) {
                     files: [{
                         destination: `theme_${toKebabCase(brand)}.xml`,
                         format: 'android/resources',
-                        filter: (token) => token.path.includes(brand)
+                        filter: (token) => token.path.map(p => toKebabCase(String(p))).includes(normalizedBrand)
                     }]
                 },
                 ios: {
@@ -222,7 +232,7 @@ async function runBuild(platformArg) {
                         options: {
                             className: `Theme${toCamelCase(brand)}`
                         },
-                        filter: (token) => token.path.includes(brand)
+                        filter: (token) => token.path.map(p => toKebabCase(String(p))).includes(normalizedBrand)
                     }]
                 },
                 flutter: {
@@ -232,7 +242,7 @@ async function runBuild(platformArg) {
                         destination: `theme_${toKebabCase(brand)}.dart`,
                         format: 'flutter/class.dart',
                         className: `${toCamelCase(brand)}Theme`,
-                        filter: (token) => token.path.includes(brand)
+                        filter: (token) => token.path.map(p => toKebabCase(String(p))).includes(normalizedBrand)
                     }]
                 }
             }

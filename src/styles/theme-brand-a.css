@@ -1,1 +1,9 @@
-/**\n * Auto-generated from tokens/design-tokens.json\n * Do not edit manually.\n */\n\n[data-theme="brand-a"] {\n  --brand-a-button-background-default-type: color;\n  --brand-a-button-background-default-value: {Purple.700};\n  --brand-a-button-background-disable-type: color;\n  --brand-a-button-background-disable-value: {Purple.200};\n  --brand-a-button-text-default-type: color;\n  --brand-a-button-text-default-value: {Base.White};\n}\n
+/**
+ * Do not edit directly, this file was auto-generated.
+ */
+
+[data-theme="brand-a"] {
+  --start-up-tokens-brand-a-button-background-default: #7e22ce;
+  --start-up-tokens-brand-a-button-background-disable: #e9d5ff;
+  --start-up-tokens-brand-a-button-text-default: #ffffff;
+}
