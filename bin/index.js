@@ -66,7 +66,7 @@ function normalizeTokens(obj) {
             continue;
         }
 
-        if (typeof val === 'string' || typeof val === 'number') {
+        if (typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean') {
             // It's a raw value, convert to object
             // also fix slash references if string
             let finalVal = val;
