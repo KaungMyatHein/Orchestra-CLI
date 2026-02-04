@@ -9,7 +9,7 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "tokens": "orchestra-cli build web"
+    "tokens": "node bin/index.js build web"
   },
   "keywords": [
     "design-system",

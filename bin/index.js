@@ -68,11 +68,34 @@ function normalizeTokens(obj) {
 
         if (typeof val === 'string' || typeof val === 'number') {
             // It's a raw value, convert to object
-            newObj[key] = { value: val };
+            // also fix slash references if string
+            let finalVal = val;
+            if (typeof val === 'string' && val.includes('{') && val.includes('/')) {
+                finalVal = val.replace(/\{([^}]+)\}/g, (match, content) => {
+                    const fixed = `{${content.replace(/\//g, '.')}}`;
+                    if (process.env.TOKENS_DEBUG === '1') {
+                        console.log(`   [DEBUG] Fixed reference: ${match} -> ${fixed}`);
+                    }
+                    return fixed;
+                });
+            }
+            newObj[key] = { value: finalVal };
         } else if (typeof val === 'object' && val !== null) {
             // Check if this object is ALREADY a token (has value/$value)
             if (val.value !== undefined || val.$value !== undefined) {
-                newObj[key] = val; // Already valid
+                // It might be a token, but the value inside might still have slashes!
+                // We need to fix the value inside.
+                const tokenVal = val.value || val.$value;
+                if (typeof tokenVal === 'string' && tokenVal.includes('{') && tokenVal.includes('/')) {
+                    val.value = tokenVal.replace(/\{([^}]+)\}/g, (match, content) => {
+                        const fixed = `{${content.replace(/\//g, '.')}}`;
+                        if (process.env.TOKENS_DEBUG === '1') {
+                            console.log(`   [DEBUG] Fixed reference (obj): ${match} -> ${fixed}`);
+                        }
+                        return fixed;
+                    });
+                }
+                newObj[key] = val; // Already valid structure
             } else {
                 // It's a group, recurse
                 newObj[key] = normalizeTokens(val);
