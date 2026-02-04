@@ -3,6 +3,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
 import StyleDictionary from 'style-dictionary';
 
 // ---------- HELPERS ----------
@@ -315,6 +316,30 @@ function runInit(platformArg) {
 const args = process.argv.slice(2);
 const command = args[0];
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+async function runInfo() {
+    console.log('CLI Info:');
+    try {
+        const pkgPath = path.join(__dirname, '..', 'package.json');
+        const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+        console.log(`  package: ${pkg.name}@${pkg.version}`);
+    } catch (e) {
+        console.log('  package: <unable to read package.json>');
+    }
+    console.log(`  node: ${process.version}`);
+    console.log(`  execPath: ${process.execPath}`);
+    console.log(`  cwd: ${process.cwd()}`);
+    try {
+        const require = createRequire(import.meta.url);
+        const resolved = require.resolve('orchestra-cli');
+        console.log(`  resolved orchestra-cli: ${resolved}`);
+    } catch (e) {
+        console.log('  resolved orchestra-cli: <not resolvable>');
+    }
+}
+
 if (command === 'init') {
     runInit(args[1]);
 } else if (command === 'build') {
@@ -322,6 +347,17 @@ if (command === 'init') {
         console.error(err);
         process.exit(1);
     });
+} else if (command === 'version' || command === '--version') {
+    try {
+        const pkgPath = path.join(__dirname, '..', 'package.json');
+        const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+        console.log(pkg.version);
+    } catch (e) {
+        console.error('Unable to read package version');
+        process.exit(1);
+    }
+} else if (command === 'info') {
+    await runInfo();
 } else if (command === 'help' || !command) {
     console.log(`
 Usage:
