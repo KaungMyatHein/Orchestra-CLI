@@ -14,6 +14,18 @@ A CLI tool to automate syncing and building design tokens for Orchestra projects
 2.  **Sync**: Push design tokens from Figma using the Orchestra plugin.
 3.  **Build**: The GitHub Action automatically runs `npm run tokens` to generate your theme files.
 
+## Upgrading
+
+Since this package is installed via Git, it does not update automatically with `npm update`. To get the latest version, run the install command again:
+
+```bash
+# For local dev dependencies (Web/iOS/Flutter)
+npm install git+https://github.com/KaungMyatHein/Orchestra-CLI.git --save-dev
+
+# For global install (Android)
+npm install -g git+https://github.com/KaungMyatHein/Orchestra-CLI.git
+```
+
 ## Platform Setup
 
 Choose your platform to get started:
@@ -113,3 +125,18 @@ npm run tokens
 1. Clone this repository
 2. Run `npm install`
 3. Make changes to `bin/index.js`
+
+## Troubleshooting
+
+**Debug Mode**
+If you are having issues with token generation, you can enable verbose logging by setting the `TOKENS_DEBUG` environment variable:
+
+```bash
+TOKENS_DEBUG=1 npm run tokens
+```
+
+This will print:
+- The full keys of your `design-tokens.json`
+- Which tokens are being filtered for each platform
+- The directory structure being created
+

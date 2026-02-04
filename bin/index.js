@@ -45,6 +45,45 @@ function toCamelCase(str) {
         .replace(/[^a-zA-Z0-9]+(.)/g, (m, chr) => chr.toUpperCase());
 }
 
+/**
+ * RECURSIVE NORMALIZER
+ * Converts raw string/number values into { value: ... } objects.
+ * This ensures compatibility with Style Dictionary even if the input JSON 
+ * uses a simplified format (e.g. "Color": "#fff") instead of the standard 
+ * ({ "Color": { "value": "#fff" } }).
+ */
+function normalizeTokens(obj) {
+    if (typeof obj !== 'object' || obj === null) return obj;
+
+    const newObj = {};
+
+    for (const key of Object.keys(obj)) {
+        const val = obj[key];
+
+        // Skip metadata or already valid keys
+        if (key === 'value' || key === '$value' || key.startsWith('$')) {
+            newObj[key] = val;
+            continue;
+        }
+
+        if (typeof val === 'string' || typeof val === 'number') {
+            // It's a raw value, convert to object
+            newObj[key] = { value: val };
+        } else if (typeof val === 'object' && val !== null) {
+            // Check if this object is ALREADY a token (has value/$value)
+            if (val.value !== undefined || val.$value !== undefined) {
+                newObj[key] = val; // Already valid
+            } else {
+                // It's a group, recurse
+                newObj[key] = normalizeTokens(val);
+            }
+        } else {
+            newObj[key] = val;
+        }
+    }
+    return newObj;
+}
+
 // ---------- CONFIG ----------
 
 /**
@@ -142,10 +181,14 @@ async function runBuild(platformArg) {
 
     const rawTokens = JSON.parse(fs.readFileSync(tokenFile, 'utf8'));
 
+    // --- STEP 0: NORMALIZE TOKENS ---
+    // Ensure all tokens have a "value" key
+    const tokens = normalizeTokens(rawTokens);
+
     // --- STEP 1: KEY FINDING LOGIC ---
     // We try to guess which key in the JSON holds variables (colors, spacing) = Primitives
     // and which key holds the specific brand themes = Components
-    const keys = Object.keys(rawTokens);
+    const keys = Object.keys(tokens);
     let primitiveKey = keys.find(k => /primitive|base|core|global/i.test(k));
     // If no explicit primitive key, assume the first one is primitive
     if (!primitiveKey) primitiveKey = keys[0];
@@ -162,8 +205,8 @@ async function runBuild(platformArg) {
     console.log(`✅ Using Primitives: "${primitiveKey}"`);
     console.log(`✅ Using Components: "${componentKey}"`);
 
-    const primitives = rawTokens[primitiveKey];
-    const componentGroup = rawTokens[componentKey];
+    const primitives = tokens[primitiveKey];
+    const componentGroup = tokens[componentKey];
 
     // Safety check: Ensure componentGroup is an object
     if (!componentGroup || typeof componentGroup !== 'object') {
